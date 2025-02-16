@@ -1,0 +1,15 @@
+.{
+    .name = "monado-passthrough-app",
+    .version = "0.0.0",
+    .dependencies = .{
+        .SDL = .{
+            .url = "git+https://github.com/Beyley/SDL?ref=openxr#d64e41f95ea641a32da18e526d57013966a96b41",
+            .hash = "1220f49d1528cb7232f72d92aa0bb36e0b0e201fa82f5d285484d9f0977a474c9db3",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
