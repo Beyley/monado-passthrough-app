@@ -78,6 +78,28 @@ pub fn main() !void {
     defer c.SDL_DestroyGPUDevice(gpu_device);
     defer _ = c.SDL_WaitForGPUIdle(gpu_device); // wait for idle, ignore any error, we're quitting anyway.
 
+    const blend_mode = find_transparent_blend_mode: {
+        var blend_mode_count: u32 = undefined;
+        try xr.handleResult(c.xrEnumerateEnvironmentBlendModes(instance, system_id, c.XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, 0, &blend_mode_count, null));
+
+        const blend_modes = try gpa.alloc(c.XrEnvironmentBlendMode, blend_mode_count);
+        defer gpa.free(blend_modes);
+
+        try xr.handleResult(c.xrEnumerateEnvironmentBlendModes(instance, system_id, c.XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO, blend_mode_count, &blend_mode_count, blend_modes.ptr));
+
+        for (blend_modes) |supported_blend_mode| {
+            switch (supported_blend_mode) {
+                c.XR_ENVIRONMENT_BLEND_MODE_ADDITIVE,
+                c.XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND,
+                => break :find_transparent_blend_mode supported_blend_mode,
+                else => {},
+            }
+        }
+
+        return error.TransparentBlendModesUnsupported;
+    };
+    log.info("Using environment blend mode {d}", .{blend_mode});
+
     var session: c.XrSession = undefined;
 
     var session_create_info: c.XrSessionCreateInfo = .{ .type = c.XR_TYPE_SESSION_CREATE_INFO };
@@ -165,7 +187,7 @@ pub fn main() !void {
         try xr.handleResult(c.xrEndFrame(session, &.{
             .type = c.XR_TYPE_FRAME_END_INFO,
             .displayTime = frame_state.predictedDisplayTime,
-            .environmentBlendMode = c.XR_ENVIRONMENT_BLEND_MODE_ALPHA_BLEND,
+            .environmentBlendMode = blend_mode,
             .layers = null,
             .layerCount = 0,
         }));
@@ -204,7 +226,10 @@ fn clearXrEventQueue(state: *State, arena: std.mem.Allocator) !bool {
                     .idle => {},
                     .ready => {
                         // begin the session
-                        try xr.handleResult(c.xrBeginSession(state.session, &.{ .type = c.XR_TYPE_SESSION_BEGIN_INFO, .primaryViewConfigurationType = c.XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO }));
+                        try xr.handleResult(c.xrBeginSession(state.session, &.{
+                            .type = c.XR_TYPE_SESSION_BEGIN_INFO,
+                            .primaryViewConfigurationType = c.XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO,
+                        }));
 
                         state.session_data = .{};
                     },
